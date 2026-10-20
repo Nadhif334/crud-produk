@@ -1,14 +1,12 @@
-import "./globals.css";
-
 export const metadata = {
-  title: "CRUD Produk",
-  description: "Aplikasi CRUD Produk menggunakan Next.js dan MySQL"
-};
+  title: 'CRUD Produk Next.js + MySQL',
+  description: 'Aplikasi CRUD Sederhana dengan Aiven MySQL',
+}
 
 export default function RootLayout({ children }) {
   return (
     <html lang="id">
       <body>{children}</body>
     </html>
-  );
+  )
 }

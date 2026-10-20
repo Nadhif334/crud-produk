@@ -1,332 +1,125 @@
-"use client";
+'use client';
+import { useState, useEffect } from 'react';
 
-import { useEffect, useState } from "react";
-
-const initialForm = {
-  nama: "",
-  deskripsi: "",
-  harga: ""
-};
-
-export default function HomePage() {
+export default function Home() {
   const [products, setProducts] = useState([]);
-  const [form, setForm] = useState(initialForm);
-  const [editId, setEditId] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [formData, setFormData] = useState({ id: '', name: '', description: '', price: '' });
+  const [error, setError] = useState(null);
 
-  async function loadProducts() {
-    setLoading(true);
-    setError("");
-
+  // Fungsi fetch yang aman dari error 'Unexpected token <'
+  const fetchProducts = async () => {
     try {
-      const response = await fetch("/api/products");
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Gagal mengambil produk");
+      const res = await fetch('/api/products');
+      
+      // Proteksi jika yang kembali ternyata halaman error HTML (bukan JSON)
+      const contentType = res.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        throw new Error("Server mengirim respon non-JSON. Periksa koneksi database Anda.");
       }
 
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Gagal mengambil data');
+      
       setProducts(data);
+      setError(null);
     } catch (err) {
       setError(err.message);
-    } finally {
-      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
-    loadProducts();
+    fetchProducts();
   }, []);
 
-  function handleChange(event) {
-    const { name, value } = event.target;
-
-    setForm((previous) => ({
-      ...previous,
-      [name]: value
-    }));
-  }
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-
-    setError("");
-    setSuccess("");
-
-    const nama = form.nama.trim();
-    const deskripsi = form.deskripsi.trim();
-    const harga = Number(form.harga);
-
-    if (!nama || !form.harga || !Number.isFinite(harga) || harga <= 0) {
-      setError("Nama dan harga produk harus diisi dengan benar.");
-      return;
-    }
-
-    setSaving(true);
-
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     try {
-      const url = editId
-        ? `/api/products/${editId}`
-        : "/api/products";
+      const method = formData.id ? 'PUT' : 'POST';
+      const url = formData.id ? `/api/products/${formData.id}` : '/api/products';
 
-      const method = editId ? "PUT" : "POST";
-
-      const response = await fetch(url, {
+      const res = await fetch(url, {
         method,
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          nama,
-          deskripsi,
-          harga
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Gagal menyimpan produk");
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Gagal menyimpan data');
       }
 
-      setSuccess(data.message);
-      setForm(initialForm);
-      setEditId(null);
-
-      await loadProducts();
+      setFormData({ id: '', name: '', description: '', price: '' });
+      fetchProducts();
     } catch (err) {
       setError(err.message);
-    } finally {
-      setSaving(false);
     }
-  }
+  };
 
-  function handleEdit(product) {
-    setForm({
-      nama: product.nama,
-      deskripsi: product.deskripsi || "",
-      harga: String(product.harga)
-    });
+  const handleEdit = (product) => {
+    setFormData(product);
+  };
 
-    setEditId(product.id);
-    setError("");
-    setSuccess("");
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth"
-    });
-  }
-
-  function handleCancelEdit() {
-    setForm(initialForm);
-    setEditId(null);
-    setError("");
-    setSuccess("");
-  }
-
-  async function handleDelete(id) {
-    const confirmed = window.confirm(
-      "Apakah kamu yakin ingin menghapus produk ini?"
-    );
-
-    if (!confirmed) return;
-
-    setError("");
-    setSuccess("");
-
+  const handleDelete = async (id) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus produk ini?')) return;
     try {
-      const response = await fetch(`/api/products/${id}`, {
-        method: "DELETE"
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Gagal menghapus produk");
-      }
-
-      setSuccess(data.message);
-      await loadProducts();
+      const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Gagal menghapus data');
+      fetchProducts();
     } catch (err) {
       setError(err.message);
     }
-  }
-
-  function formatRupiah(value) {
-    return new Intl.NumberFormat("id-ID", {
-      style: "currency",
-      currency: "IDR",
-      maximumFractionDigits: 0
-    }).format(Number(value));
-  }
+  };
 
   return (
-    <main className="container">
-      <header className="header">
-        <h1>CRUD Produk</h1>
-        <p>
-          Aplikasi pengelolaan data produk menggunakan Next.js
-          dan MySQL.
-        </p>
-      </header>
+    <div style={{ padding: '2rem', fontFamily: 'sans-serif', maxWidth: '800px', margin: '0 auto' }}>
+      <h1>CRUD Produk</h1>
+      <p>Aplikasi pengelolaan data produk menggunakan Next.js dan MySQL.</p>
 
+      {/* Tampilan Pesan Error */}
       {error && (
-        <div className="alert error" role="alert">
+        <div style={{ padding: '1rem', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: '0.375rem', marginBottom: '1rem' }}>
           {error}
         </div>
       )}
 
-      {success && (
-        <div className="alert success" role="status">
-          {success}
-        </div>
-      )}
+      {/* Form Tambah/Edit */}
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '2rem', padding: '1rem', border: '1px solid #ddd', borderRadius: '0.5rem' }}>
+        <h3>{formData.id ? 'Edit Produk' : 'Tambah Produk'}</h3>
+        <input type="text" placeholder="Nama Produk" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required style={{ padding: '0.5rem' }} />
+        <textarea placeholder="Deskripsi" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} style={{ padding: '0.5rem' }} />
+        <input type="number" placeholder="Harga" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} required style={{ padding: '0.5rem' }} />
+        <button type="submit" style={{ padding: '0.5rem', backgroundColor: '#2563eb', color: 'white', border: 'none', cursor: 'pointer' }}>Simpan</button>
+        {formData.id && <button type="button" onClick={() => setFormData({ id: '', name: '', description: '', price: '' })} style={{ padding: '0.5rem', backgroundColor: '#gray' }}>Batal</button>}
+      </form>
 
-      <section className="card">
-        <h2>{editId ? "Edit Produk" : "Tambah Produk"}</h2>
-
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label htmlFor="nama">Nama Produk</label>
-
-            <input
-              id="nama"
-              name="nama"
-              type="text"
-              placeholder="Masukkan nama produk"
-              value={form.nama}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="deskripsi">Deskripsi</label>
-
-            <textarea
-              id="deskripsi"
-              name="deskripsi"
-              placeholder="Masukkan deskripsi produk"
-              value={form.deskripsi}
-              onChange={handleChange}
-              rows={3}
-            />
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="harga">Harga (Rp)</label>
-
-            <input
-              id="harga"
-              name="harga"
-              type="number"
-              min="1"
-              step="1"
-              placeholder="Masukkan harga produk"
-              value={form.harga}
-              onChange={handleChange}
-              required
-            />
-          </div>
-
-          <div className="form-actions">
-            <button
-              className="button primary"
-              type="submit"
-              disabled={saving}
-            >
-              {saving
-                ? "Menyimpan..."
-                : editId
-                  ? "Simpan Perubahan"
-                  : "Tambah Produk"}
-            </button>
-
-            {editId && (
-              <button
-                className="button secondary"
-                type="button"
-                onClick={handleCancelEdit}
-              >
-                Batal
-              </button>
-            )}
-          </div>
-        </form>
-      </section>
-
-      <section className="card">
-        <div className="section-heading">
-          <h2>Daftar Produk</h2>
-
-          <button
-            className="button secondary"
-            type="button"
-            onClick={loadProducts}
-            disabled={loading}
-          >
-            Muat Ulang
-          </button>
-        </div>
-
-        {loading ? (
-          <p className="empty">Memuat data produk...</p>
-        ) : products.length === 0 ? (
-          <p className="empty">Belum ada produk.</p>
-        ) : (
-          <div className="table-wrapper">
-            <table>
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Nama Produk</th>
-                  <th>Deskripsi</th>
-                  <th>Harga</th>
-                  <th>Aksi</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {products.map((product) => (
-                  <tr key={product.id}>
-                    <td>{product.id}</td>
-                    <td>{product.nama}</td>
-                    <td>{product.deskripsi || "-"}</td>
-                    <td>{formatRupiah(product.harga)}</td>
-                    <td>
-                      <div className="action-buttons">
-                        <button
-                          className="button edit"
-                          type="button"
-                          onClick={() => handleEdit(product)}
-                        >
-                          Edit
-                        </button>
-
-                        <button
-                          className="button delete"
-                          type="button"
-                          onClick={() => handleDelete(product.id)}
-                        >
-                          Hapus
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-
-      <footer className="footer">
-        CRUD Produk — Next.js + MySQL Aiven
-      </footer>
-    </main>
+      {/* Tabel Data */}
+      <table border="1" cellPadding="10" style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ backgroundColor: '#f3f4f6' }}>
+            <th>Nama</th>
+            <th>Deskripsi</th>
+            <th>Harga</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {products.length === 0 ? (
+            <tr><td colSpan="4" style={{ textAlign: 'center' }}>Tidak ada data produk.</td></tr>
+          ) : (
+            products.map((p) => (
+              <tr key={p.id}>
+                <td>{p.name}</td>
+                <td>{p.description}</td>
+                <td>Rp {Number(p.price).toLocaleString('id-ID')}</td>
+                <td>
+                  <button onClick={() => handleEdit(p)} style={{ marginRight: '0.5rem' }}>Edit</button>
+                  <button onClick={() => handleDelete(p.id)} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', cursor: 'pointer' }}>Hapus</button>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
