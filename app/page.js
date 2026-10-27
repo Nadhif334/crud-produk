@@ -1,125 +1,321 @@
-'use client';
-import { useState, useEffect } from 'react';
+"use client";
+
+import { useEffect, useState } from "react";
 
 export default function Home() {
-  const [products, setProducts] = useState([]);
-  const [formData, setFormData] = useState({ id: '', name: '', description: '', price: '' });
-  const [error, setError] = useState(null);
+  const [produk, setProduk] = useState([]);
 
-  // Fungsi fetch yang aman dari error 'Unexpected token <'
-  const fetchProducts = async () => {
+  const [form, setForm] = useState({
+    nama: "",
+    deskripsi: "",
+    harga: "",
+  });
+
+  const [editId, setEditId] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [pesan, setPesan] = useState("");
+  const [error, setError] = useState("");
+
+  // MENGAMBIL DATA PRODUK
+  async function ambilProduk() {
+    setLoading(true);
+    setError("");
+
     try {
-      const res = await fetch('/api/products');
-      
-      // Proteksi jika yang kembali ternyata halaman error HTML (bukan JSON)
-      const contentType = res.headers.get("content-type");
-      if (!contentType || !contentType.includes("application/json")) {
-        throw new Error("Server mengirim respon non-JSON. Periksa koneksi database Anda.");
-      }
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Gagal mengambil data');
-      
-      setProducts(data);
-      setError(null);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const method = formData.id ? 'PUT' : 'POST';
-      const url = formData.id ? `/api/products/${formData.id}` : '/api/products';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+      const response = await fetch("/api/products", {
+        cache: "no-store",
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Gagal menyimpan data');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Gagal mengambil data produk."
+        );
       }
 
-      setFormData({ id: '', name: '', description: '', price: '' });
-      fetchProducts();
+      setProduk(data);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
-  };
+  }
 
-  const handleEdit = (product) => {
-    setFormData(product);
-  };
+  useEffect(() => {
+    ambilProduk();
+  }, []);
 
-  const handleDelete = async (id) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus produk ini?')) return;
+  // MENGUBAH INPUT
+  function handleChange(e) {
+    setForm({
+      ...form,
+      [e.target.name]: e.target.value,
+    });
+  }
+
+  // MENYIMPAN ATAU MENGEDIT PRODUK
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    setPesan("");
+    setError("");
+
     try {
-      const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
-      if (!res.ok) throw new Error('Gagal menghapus data');
-      fetchProducts();
+      const url = editId
+        ? `/api/products/${editId}`
+        : "/api/products";
+
+      const response = await fetch(url, {
+        method: editId ? "PUT" : "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          nama: form.nama,
+          deskripsi: form.deskripsi,
+          harga: form.harga,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Gagal menyimpan produk."
+        );
+      }
+
+      setPesan(data.message);
+
+      setForm({
+        nama: "",
+        deskripsi: "",
+        harga: "",
+      });
+
+      setEditId(null);
+
+      await ambilProduk();
     } catch (err) {
       setError(err.message);
     }
-  };
+  }
+
+  // MEMILIH PRODUK UNTUK DIEDIT
+  function mulaiEdit(item) {
+    setEditId(item.id);
+
+    setForm({
+      nama: item.nama,
+      deskripsi: item.deskripsi || "",
+      harga: String(item.harga),
+    });
+
+    setPesan("");
+    setError("");
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  }
+
+  // MEMBATALKAN EDIT
+  function batalEdit() {
+    setEditId(null);
+
+    setForm({
+      nama: "",
+      deskripsi: "",
+      harga: "",
+    });
+
+    setPesan("");
+    setError("");
+  }
+
+  // MENGHAPUS PRODUK
+  async function hapusProduk(id) {
+    const yakin = window.confirm(
+      "Yakin ingin menghapus produk ini?"
+    );
+
+    if (!yakin) return;
+
+    setPesan("");
+    setError("");
+
+    try {
+      const response = await fetch(
+        `/api/products/${id}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Gagal menghapus produk."
+        );
+      }
+
+      setPesan(data.message);
+
+      if (Number(editId) === Number(id)) {
+        batalEdit();
+      }
+
+      await ambilProduk();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  // FORMAT HARGA
+  function formatRupiah(harga) {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      maximumFractionDigits: 0,
+    }).format(Number(harga));
+  }
 
   return (
-    <div style={{ padding: '2rem', fontFamily: 'sans-serif', maxWidth: '800px', margin: '0 auto' }}>
+    <main className="container">
       <h1>CRUD Produk</h1>
-      <p>Aplikasi pengelolaan data produk menggunakan Next.js dan MySQL.</p>
 
-      {/* Tampilan Pesan Error */}
+      <p className="subtitle">
+        Aplikasi pengelolaan data produk menggunakan Next.js
+        dan MySQL.
+      </p>
+
+      {pesan && (
+        <div className="success">
+          {pesan}
+        </div>
+      )}
+
       {error && (
-        <div style={{ padding: '1rem', backgroundColor: '#fee2e2', color: '#991b1b', borderRadius: '0.375rem', marginBottom: '1rem' }}>
+        <div className="error">
           {error}
         </div>
       )}
 
-      {/* Form Tambah/Edit */}
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '2rem', padding: '1rem', border: '1px solid #ddd', borderRadius: '0.5rem' }}>
-        <h3>{formData.id ? 'Edit Produk' : 'Tambah Produk'}</h3>
-        <input type="text" placeholder="Nama Produk" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required style={{ padding: '0.5rem' }} />
-        <textarea placeholder="Deskripsi" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} style={{ padding: '0.5rem' }} />
-        <input type="number" placeholder="Harga" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} required style={{ padding: '0.5rem' }} />
-        <button type="submit" style={{ padding: '0.5rem', backgroundColor: '#2563eb', color: 'white', border: 'none', cursor: 'pointer' }}>Simpan</button>
-        {formData.id && <button type="button" onClick={() => setFormData({ id: '', name: '', description: '', price: '' })} style={{ padding: '0.5rem', backgroundColor: '#gray' }}>Batal</button>}
-      </form>
+      <section className="form-card">
+        <h2>
+          {editId ? "Edit Produk" : "Tambah Produk"}
+        </h2>
 
-      {/* Tabel Data */}
-      <table border="1" cellPadding="10" style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ backgroundColor: '#f3f4f6' }}>
-            <th>Nama</th>
-            <th>Deskripsi</th>
-            <th>Harga</th>
-            <th>Aksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          {products.length === 0 ? (
-            <tr><td colSpan="4" style={{ textAlign: 'center' }}>Tidak ada data produk.</td></tr>
-          ) : (
-            products.map((p) => (
-              <tr key={p.id}>
-                <td>{p.name}</td>
-                <td>{p.description}</td>
-                <td>Rp {Number(p.price).toLocaleString('id-ID')}</td>
-                <td>
-                  <button onClick={() => handleEdit(p)} style={{ marginRight: '0.5rem' }}>Edit</button>
-                  <button onClick={() => handleDelete(p.id)} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', cursor: 'pointer' }}>Hapus</button>
-                </td>
-              </tr>
-            ))
+        <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            name="nama"
+            placeholder="Nama Produk"
+            value={form.nama}
+            onChange={handleChange}
+            required
+          />
+
+          <textarea
+            name="deskripsi"
+            placeholder="Deskripsi"
+            value={form.deskripsi}
+            onChange={handleChange}
+            rows={3}
+          />
+
+          <input
+            type="number"
+            name="harga"
+            placeholder="Harga"
+            value={form.harga}
+            onChange={handleChange}
+            min="0"
+            step="0.01"
+            required
+          />
+
+          <button type="submit" className="save-button">
+            {editId ? "Update Produk" : "Simpan"}
+          </button>
+
+          {editId && (
+            <button
+              type="button"
+              onClick={batalEdit}
+              className="cancel-button"
+            >
+              Batal Edit
+            </button>
           )}
-        </tbody>
-      </table>
-    </div>
+        </form>
+      </section>
+
+      <section className="table-section">
+        <h2>Daftar Produk</h2>
+
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Nama</th>
+                <th>Deskripsi</th>
+                <th>Harga</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan="4">
+                    Memuat data produk...
+                  </td>
+                </tr>
+              ) : produk.length === 0 ? (
+                <tr>
+                  <td colSpan="4">
+                    Tidak ada data produk.
+                  </td>
+                </tr>
+              ) : (
+                produk.map((item) => (
+                  <tr key={item.id}>
+                    <td>{item.nama}</td>
+
+                    <td>
+                      {item.deskripsi || "-"}
+                    </td>
+
+                    <td>
+                      {formatRupiah(item.harga)}
+                    </td>
+
+                    <td>
+                      <button
+                        onClick={() => mulaiEdit(item)}
+                        className="edit-button"
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        onClick={() => hapusProduk(item.id)}
+                        className="delete-button"
+                      >
+                        Hapus
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
   );
 }

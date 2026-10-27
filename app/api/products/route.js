@@ -1,36 +1,115 @@
-import { NextResponse } from 'next/server';
-import { getConnection } from '@/lib/db';
+import { NextResponse } from "next/server";
+import db from "@/lib/db";
 
-// GET: Mengambil semua data produk
-export async function GET() {
+// MEMERIKSA ID
+function validId(id) {
+  return /^\d+$/.test(String(id)) && Number(id) > 0;
+}
+
+// MENGEDIT PRODUK
+export async function PUT(request, { params }) {
   try {
-    const db = await getConnection();
-    const [rows] = await db.query('SELECT * FROM products ORDER BY id DESC');
-    return NextResponse.json(rows);
+    const { id } = await params;
+
+    if (!validId(id)) {
+      return NextResponse.json(
+        { message: "ID produk tidak valid." },
+        { status: 400 }
+      );
+    }
+
+    const body = await request.json();
+
+    const nama = String(body.nama || "").trim();
+    const deskripsi = String(body.deskripsi || "").trim();
+
+    if (
+      !nama ||
+      body.harga === "" ||
+      body.harga === null ||
+      body.harga === undefined
+    ) {
+      return NextResponse.json(
+        { message: "Nama dan harga wajib diisi." },
+        { status: 400 }
+      );
+    }
+
+    const harga = Number(body.harga);
+
+    if (!Number.isFinite(harga) || harga < 0) {
+      return NextResponse.json(
+        { message: "Harga tidak valid." },
+        { status: 400 }
+      );
+    }
+
+    const [result] = await db.execute(
+      `UPDATE produk
+       SET nama = ?, deskripsi = ?, harga = ?
+       WHERE id = ?`,
+      [nama, deskripsi, harga, Number(id)]
+    );
+
+    if (result.affectedRows === 0) {
+      return NextResponse.json(
+        { message: "Produk tidak ditemukan." },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      message: "Produk berhasil diperbarui.",
+    });
   } catch (error) {
-    console.error('Database Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Error mengedit produk:", error);
+
+    return NextResponse.json(
+      {
+        message: "Gagal mengedit produk.",
+        error: error.message,
+      },
+      { status: 500 }
+    );
   }
 }
 
-// POST: Membuat data produk baru
-export async function POST(request) {
+// MENGHAPUS PRODUK
+export async function DELETE(request, { params }) {
   try {
-    const { name, description, price } = await request.json();
-    
-    if (!name || !price) {
-      return NextResponse.json({ error: 'Nama dan Harga wajib diisi' }, { status: 400 });
+    const { id } = await params;
+
+    if (!validId(id)) {
+      return NextResponse.json(
+        { message: "ID produk tidak valid." },
+        { status: 400 }
+      );
     }
 
-    const db = await getConnection();
-    const [result] = await db.query(
-      'INSERT INTO products (name, description, price) VALUES (?, ?, ?)',
-      [name, description, price]
+    const [result] = await db.execute(
+      "DELETE FROM produk WHERE id = ?",
+      [Number(id)]
     );
 
-    return NextResponse.json({ id: result.insertId, name, description, price }, { status: 201 });
+    if (result.affectedRows === 0) {
+      return NextResponse.json(
+        { message: "Produk tidak ditemukan." },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      message: "Produk berhasil dihapus.",
+    });
   } catch (error) {
-    console.error('Database Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Error menghapus produk:", error);
+
+    return NextResponse.json(
+      {
+        message: "Gagal menghapus produk.",
+        error: error.message,
+      },
+      { status: 500 }
+    );
   }
 }

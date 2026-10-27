@@ -1,7 +1,15 @@
-CREATE TABLE IF NOT EXISTS products (
+CREATE DATABASE IF NOT EXISTS crud_produk;
+
+USE crud_produk;
+
+CREATE TABLE IF NOT EXISTS produk (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    description TEXT,
-    price DECIMAL(10, 2) NOT NULL,
+    nama VARCHAR(150) NOT NULL,
+    deskripsi TEXT,
+    harga DECIMAL(15,2) NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+SHOW TABLES;
+
+SELECT * FROM produk;
